@@ -13,8 +13,9 @@ library(bigrquery)
 set_service_token("scene-service-account.json")
 
 project <- "project-scene-attrition"
-sql <- "SELECT * FROM `project-scene-attrition.Customer.SP_CustomerDetail` LIMIT 1000"
-query_exec(sql, project = project, use_legacy_sql = FALSE)
+sql <- "SELECT * FROM `project-scene-attrition.Feature.All_Features_Labeled`"
+customers <- query_exec(sql, project = project, use_legacy_sql = FALSE)
+
 
 ```
 

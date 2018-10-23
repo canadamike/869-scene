@@ -1,0 +1,76 @@
+---
+title: "Scene Attrition Model"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+```{r}
+library(bigrquery)
+
+set_service_token("scene-service-account.json")
+
+project <- "project-scene-attrition"
+sql <- "SELECT * FROM `project-scene-attrition.Feature.All_Features_Labeled`"
+customers <- query_exec(sql, project = project, use_legacy_sql = FALSE)
+customers$Attrited <- as.factor(customers$Attrited)
+customers$LanguagePreference <- as.factor(customers$LanguagePreference)
+customers$Gender <- as.factor(customers$Gender)
+customers$AgeClass <- as.factor(customers$AgeClass)
+customers$OnlineTicketPurchaser_tendancy <- as.factor(customers$OnlineTicketPurchaser_tendancy)
+customers$TuesdayAttendee_tendancy <- as.factor(customers$TuesdayAttendee_tendancy)
+customers$ConcessionPurchaser_tendancy <- as.factor(customers$ConcessionPurchaser_tendancy)
+customers$OpensEmail_tendancy <- as.factor(customers$OpensEmail_tendancy)
+customers$ClicksEmail_tendancy <- as.factor(customers$ClicksEmail_tendancy)
+customers$WeekendMatineeViewer_tendancy <- as.factor(customers$WeekendMatineeViewer_tendancy)
+customers$WeekdayMatineeViewer_tendancy <- as.factor(customers$WeekdayMatineeViewer_tendancy)
+
+```
+```{r}
+# Helper function to print the confusion matrix and other performance metrics of the models.
+printPerformance = function(pred, actual, positive="yes") {
+  print(table(actual, pred))
+  print("")
+  
+  print(sprintf("Accuracy:    %.3f", Accuracy(y_true=actual, y_pred=pred)))
+  print(sprintf("Precision:   %.3f", Precision(y_true=actual, y_pred=pred, positive=positive)))
+  print(sprintf("Recall:      %.3f", Recall(y_true=actual, y_pred=pred, positive=positive)))
+  print(sprintf("F1 Score:    %.3f", F1_Score(pred, actual, positive=positive)))
+  print(sprintf("Sensitivity: %.3f", Sensitivity(y_true=actual, y_pred=pred, positive=positive)))
+  print(sprintf("Specificity: %.3f", Specificity(y_true=actual, y_pred=pred, positive=positive)))
+}
+```
+
+```{r}
+library(tidyverse)
+library(MLmetrics)
+library(randomForest)
+library(e1071)
+
+set.seed(123) # Set the seed to make it reproducible
+train <- sample_frac(customers, 0.8)
+test <- setdiff(customers, train)
+train <- as.data.frame(train)
+test <- as.data.frame(test)
+actual = test$Attrited
+formula = Attrited ~ OpensEmail_tendancy + AvgPointsEarned + AvgPointsEarnedPerMonth + AvgTxPurchaseAmountPerMonth  + OnlineTicketPurchaser_tendancy
+#formula = Attrited ~ .
+positive = TRUE
+
+
+
+model = randomForest(formula, data=train, mtry=5, ntree=1000, importance=TRUE, sampsize=c("TRUE"=630,"FALSE"=630))
+#model <- naiveBayes(formula, data = train)
+model.predicted = predict(model, test, type="class") 
+printPerformance(model.predicted, actual, positive = positive)
+varImpPlot(model, type=2)
+
+```
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
