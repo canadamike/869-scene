@@ -63,30 +63,39 @@ train <- sample_frac(customers, 0.8)
 test <- setdiff(customers, train)
 train <- as.data.frame(train)
 test <- as.data.frame(test)
+
+label = train$Attrited
 actual = test$Attrited
+
 formula = Attrited ~ OpensEmail_tendancy + AvgPointsEarned + AvgPointsEarnedPerMonth + AvgTxPurchaseAmountPerMonth  + OnlineTicketPurchaser_tendancy
 #formula = Attrited ~ .
 positive = TRUE
 
-mtrain = train[,-c(1,2)]
-mtest = test[,-c(1)]
 
 # convert non numberical values to numerical values
-dummies <- dummyVars(~ ., data = mtrain)
-mtrain = predict(dummies, newdata = mtrain)
-mtest = predict(dummies, newdata = mtest)
+dummies <- dummyVars( ~ ., data = train)
+mtrain = predict(dummies, newdata = train)
+mtest = predict(dummies, newdata = test)
+
+# remove attrite column for training and testing (label and actual contain them)
+mtest = mtest[, -c(51,52)]
+mtrain = mtrain[, -c(51,52)]
 ```
 
 
 
 #XGBoosting
 ```{r}
+# src: https://www.kaggle.com/vivekag/ensemble-of-rf-and-xgboost-in-r
+
 param <- list("objective" = "reg:linear", "nthread" = 8, "verbose"=0)
-xgb.fit = xgboost(param=param, data = mtrain, label = train$Attrited, nrounds=1200, eta = .01, max_depth = 7, 
+xgb.fit = xgboost(param=param, data = mtrain, label = label, nrounds=1200, eta = .01, max_depth = 7, 
                   min_child_weight = 5, scale_pos_weight = 1.0, subsample=0.8) 
 
-
+# creates predictions using numberic (1 = false, 2 = true)
 xgboost.predicted <- predict(xgb.fit, newdata=mtest)
+
+# convert predicts to logical
 xgboost.predicted <- lapply(xgboost.predicted, round)
 xgboost.predicted <- as.numeric(xgboost.predicted) -1
 xgboost.predicted <- as.logical(xgboost.predicted)
