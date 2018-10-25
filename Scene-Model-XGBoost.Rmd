@@ -78,8 +78,8 @@ mtrain = predict(dummies, newdata = train)
 mtest = predict(dummies, newdata = test)
 
 # remove attrite column for training and testing (label and actual contain them)
-mtest = mtest[, -c(51,52)]
-mtrain = mtrain[, -c(51,52)]
+mtest = mtest[, -c(52,53)]
+mtrain = mtrain[, -c(52,53)]
 ```
 
 
