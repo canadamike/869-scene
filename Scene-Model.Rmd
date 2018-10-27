@@ -9,6 +9,7 @@ Try executing this chunk by clicking the *Run* button within the chunk or by pla
 
 ```{r}
 library(bigrquery)
+library(caret)
 
 set_service_token("scene-service-account.json")
 
@@ -26,6 +27,7 @@ customers$OpensEmail_tendancy <- as.factor(customers$OpensEmail_tendancy)
 customers$ClicksEmail_tendancy <- as.factor(customers$ClicksEmail_tendancy)
 customers$WeekendMatineeViewer_tendancy <- as.factor(customers$WeekendMatineeViewer_tendancy)
 customers$WeekdayMatineeViewer_tendancy <- as.factor(customers$WeekdayMatineeViewer_tendancy)
+customers$FSA <- as.factor(customers$FSA)
 
 ```
 ```{r}
@@ -48,24 +50,101 @@ library(tidyverse)
 library(MLmetrics)
 library(randomForest)
 library(e1071)
+library(fastAdaboost)
+library(mlr)
+
+
+preProc <- preProcess(customers, method = "range")
 
 set.seed(123) # Set the seed to make it reproducible
 train <- sample_frac(customers, 0.8)
 test <- setdiff(customers, train)
 train <- as.data.frame(train)
+train <- predict(preProc, train)
 test <- as.data.frame(test)
+test <- predict(preProc, test)
 actual = test$Attrited
-formula = Attrited ~ OpensEmail_tendancy + AvgPointsEarned + AvgPointsEarnedPerMonth + AvgTxPurchaseAmountPerMonth  + OnlineTicketPurchaser_tendancy
-#formula = Attrited ~ .
+#formula = Attrited ~  AvgDaysBetweenBlackCardPurchase + NumCaraLocations5k + NumCaraLocations4k + AgeClass + TwoMonthPriorBlackCard + TwoMonthPriorCineplex 
+formula = Attrited ~ .
+#formula = Attrited ~ CineplexToBlackRatio + CaraToBlackRatio  + NumCaraLocations2k + TwoMonthPriorBlackCard + TotalBlackCardPointsEarned + AvgBlackCardPointsEarnedPerMonth +AvgDaysBetweenBlackCardPurchase  +AvgDaysBetweenBlackCardRedemption  + AvgBlackCardPointsEarned  +AvgBlackCardTxPurchaseAmountPerMonth 
+formula = Attrited ~ FSA + TotalBlackCardPointsEarned + AvgDaysBetweenBlackCardPurchase + BlackCardToTotalRatio + CaraToBlackRatio + NumCaraLocations1k
+#formula = Attrited ~ BlackCardToTotalRatio + AvgPointsEarnedPerMonth + TotalBlackCardPointsEarned + AvgDaysBetweenBlackCardPurchase + CineplexToBlackRatio + CaraToBlackRatio
 positive = TRUE
 
-
-
-model = randomForest(formula, data=train, mtry=5, ntree=1000, importance=TRUE, sampsize=c("TRUE"=630,"FALSE"=630))
+model = randomForest(formula, data=train, mtry=3, ntree=800, importance=TRUE, sampsize=c("TRUE"=520,"FALSE"=520))
+#model = adaboost(formula, data=train, nIter=1000, sampsize=c("TRUE"=520,"FALSE"=520))
 #model <- naiveBayes(formula, data = train)
 model.predicted = predict(model, test, type="class") 
 printPerformance(model.predicted, actual, positive = positive)
+<<<<<<< HEAD
 varImpPlot(model, type=2)
+=======
+#importance(model)
+varImpPlot(model, type=1)
+
+
+```
+
+```{r}
+library(caret)
+library(xgboost)
+library(randomForest)
+
+
+# Training and Testing Variables
+set.seed(123) # Set the seed to make it reproducible
+train <- sample_frac(customers, 0.8)
+test <- setdiff(customers, train)
+train <- as.data.frame(train)
+test <- as.data.frame(test)
+label = train$Attrited
+actual = test$Attrited
+
+positive = TRUE
+# convert non numberical values to numerical values
+dummies <- dummyVars( ~ ., data = train)
+mtrain = predict(dummies, newdata = train)
+mtest = predict(dummies, newdata = test)
+# remove attrite column for training and testing (label and actual contain them)
+mtest = mtest[, -c(1,2)]
+mtrain = mtrain[, -c(1,2)]
+
+
+
+#XGBoosting
+# src: https://www.kaggle.com/vivekag/ensemble-of-rf-and-xgboost-in-r
+
+param <- list("objective" = "reg:linear", "nthread" = 8, "verbose"=0)
+xgb.fit = xgboost(param=param, data = mtrain, label = label, nrounds=100, eta = .01, max_depth = 7, 
+                  min_child_weight = 5, scale_pos_weight = 1.0, subsample=0.8) 
+# creates predictions using numberic (1 = false, 2 = true)
+xgboost.predicted <- predict(xgb.fit, newdata=mtest)
+# convert predicts to logical
+xgboost.predicted <- lapply(xgboost.predicted, round)
+xgboost.predicted <- as.numeric(xgboost.predicted) -1
+xgboost.predicted <- as.logical(xgboost.predicted)
+printPerformance(xgboost.predicted, actual, positive = positive)
+```
+
+```{r}
+
+
+library(bigrquery)
+
+set_service_token("scene-service-account.json")
+
+project <- "project-scene-attrition"
+sql <- "SELECT C.Unique_member_identifier as id, timestamp_diff(A.lastdt, C.createdt,  HOUR) /24 as DaysTillAttrition
+
+FROM `project-scene-attrition.Customer.Customer_Master` C
+INNER JOIN `project-scene-attrition.Customer.AttritedCustomers` A
+ON A.Unique_member_identifier = C.Unique_member_identifier 
+order by 2"
+attriteBins <- query_exec(sql, project = project, use_legacy_sql = FALSE)
+
+hist(attriteBins$DaysTillAttrition)
+
+>>>>>>> 03c3810... New model with range normalization
 ```
 
 Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
